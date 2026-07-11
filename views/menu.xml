@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_zk_root"
+              name="ZKTeco"
+              parent="hr_attendance.menu_hr_attendance_root"
+              sequence="50"/>
+
+    <menuitem id="menu_zk_device"
+              name="Dispositivos"
+              parent="menu_zk_root"
+              action="action_zk_device"
+              sequence="10"/>
+
+    <menuitem id="menu_zk_attendance_log"
+              name="Registros"
+              parent="menu_zk_root"
+              action="action_zk_attendance_log"
+              sequence="20"/>
+
+</odoo>

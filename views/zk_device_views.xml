@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_zk_device_list" model="ir.ui.view">
+        <field name="name">zk.device.list</field>
+        <field name="model">zk.device</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'connected'" decoration-danger="state == 'error'"
+                  decoration-muted="state == 'not_connected'">
+                <field name="name"/>
+                <field name="connection_mode"/>
+                <field name="serial_number"/>
+                <field name="ip_address"/>
+                <field name="last_communication"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'connected'"
+                       decoration-danger="state == 'error'"
+                       decoration-muted="state == 'not_connected'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_zk_device_form" model="ir.ui.view">
+        <field name="name">zk.device.form</field>
+        <field name="model">zk.device</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_resend_all_records" type="object"
+                            string="Reenviar Todos los Registros" class="btn-secondary"/>
+                    <button name="action_reprocess_pending" type="object"
+                            string="Procesar Pendientes" class="btn-secondary"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="not_connected,connected,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_logs" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="log_count" widget="statinfo" string="Registros"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="Ej: Checador Entrada Principal"/></h1>
+                    </div>
+
+                    <group string="Modo de Conexión">
+                        <field name="connection_mode" widget="radio" nolabel="1"/>
+                    </group>
+
+                    <group invisible="connection_mode != 'adms'">
+                        <group string="ADMS / Push">
+                            <field name="serial_number"
+                                   required="connection_mode == 'adms'"
+                                   placeholder="Ej: CJXK123456789"/>
+                            <field name="adms_stamp"/>
+                            <field name="last_communication"/>
+                        </group>
+                        <group string="Configurar en el Reloj">
+                            <div colspan="2" class="text-muted">
+                                <p><strong>Menú → Comunicación → Cloud / ADMS:</strong></p>
+                                <ul>
+                                    <li><strong>Server Address:</strong> IP o dominio de este servidor Odoo</li>
+                                    <li><strong>Server Port:</strong> 8069 (o el puerto de tu Odoo)</li>
+                                    <li><strong>HTTPS:</strong> actívalo si usas SSL</li>
+                                    <li>El número de serie aparece en <em>Menú → Sistema → Información del dispositivo</em></li>
+                                </ul>
+                            </div>
+                        </group>
+                    </group>
+
+                    <group invisible="connection_mode != 'sdk'">
+                        <group string="SDK / pyzk">
+                            <field name="ip_address"
+                                   required="connection_mode == 'sdk'"
+                                   placeholder="Ej: 192.168.1.201"/>
+                            <field name="port"/>
+                            <field name="sdk_timeout"/>
+                            <field name="last_communication"/>
+                        </group>
+                        <group string="Requisitos">
+                            <div colspan="2" class="text-muted">
+                                <p>Este modo requiere que el servidor de Odoo tenga acceso directo
+                                   por red al reloj, y que la librería <code>pyzk</code> esté
+                                   instalada en el servidor:</p>
+                                <p><code>pip install pyzk</code></p>
+                                <p>Usa el botón <strong>Reenviar Todos los Registros</strong> para
+                                   conectarte ahora mismo y traer las marcaciones.</p>
+                            </div>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="General">
+                            <field name="location"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="Notas">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_zk_device" model="ir.actions.act_window">
+        <field name="name">Dispositivos ZKTeco</field>
+        <field name="res_model">zk.device</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smart_help">
+                En modo ADMS/Push, los dispositivos se registran automáticamente
+                la primera vez que se conectan a Odoo. En modo SDK/pyzk, créalos
+                aquí manualmente indicando la IP del reloj.
+            </p>
+        </field>
+    </record>
+
+</odoo>
