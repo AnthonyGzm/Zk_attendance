@@ -26,10 +26,24 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_test_connection" type="object"
+                            string="Probar Conexión" class="btn-primary"
+                            invisible="connection_mode != 'sdk'"/>
+                    <button name="action_test_connection" type="object"
+                            string="Verificar Estado" class="btn-primary"
+                            invisible="connection_mode != 'adms'"/>
                     <button name="action_resend_all_records" type="object"
                             string="Reenviar Todos los Registros" class="btn-secondary"/>
                     <button name="action_reprocess_pending" type="object"
                             string="Procesar Pendientes" class="btn-secondary"/>
+                    <button name="action_queue_reboot" type="object"
+                            string="Reiniciar Dispositivo" class="btn-secondary"
+                            invisible="connection_mode != 'adms'"
+                            confirm="Se encolará un reinicio remoto del reloj. ¿Continuar?"/>
+                    <button name="action_queue_clear_log" type="object"
+                            string="Borrar Registros del Reloj" class="btn-secondary"
+                            invisible="connection_mode != 'adms'"
+                            confirm="Esto borra las marcaciones guardadas en la MEMORIA del reloj (no las de Odoo). ¿Continuar?"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="not_connected,connected,error"/>
                 </header>
@@ -38,6 +52,11 @@
                         <button name="action_view_logs" type="object"
                                 class="oe_stat_button" icon="fa-list">
                             <field name="log_count" widget="statinfo" string="Registros"/>
+                        </button>
+                        <button name="action_view_commands" type="object"
+                                class="oe_stat_button" icon="fa-terminal"
+                                invisible="connection_mode != 'adms'">
+                            <field name="command_count" widget="statinfo" string="Comandos Pendientes"/>
                         </button>
                     </div>
                     <div class="oe_title">
@@ -93,6 +112,7 @@
 
                     <group>
                         <group string="General">
+                            <field name="tz" placeholder="Ej: America/Bogota"/>
                             <field name="location"/>
                             <field name="active"/>
                         </group>

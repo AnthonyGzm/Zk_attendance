@@ -18,4 +18,10 @@
               action="action_zk_attendance_log"
               sequence="20"/>
 
+    <menuitem id="menu_zk_device_command"
+              name="Comandos"
+              parent="menu_zk_root"
+              action="action_zk_device_command"
+              sequence="30"/>
+
 </odoo>

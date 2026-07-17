@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
+import pytz
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+
+def _tz_get(self):
+    return [(tz, tz) for tz in sorted(pytz.common_timezones)]
 
 
 class ZkDevice(models.Model):
@@ -37,17 +43,204 @@ class ZkDevice(models.Model):
 
     location = fields.Char(string='Ubicación')
     log_count = fields.Integer(string='Registros', compute='_compute_log_count')
+    command_count = fields.Integer(string='Comandos Pendientes', compute='_compute_command_count')
     notes = fields.Text(string='Notas')
+
+    tz = fields.Selection(_tz_get, string='Zona Horaria del Reloj',
+                           default=lambda self: self.env.user.tz or 'UTC',
+                           help='Zona horaria configurada FÍSICAMENTE en el reloj (Menú → Sistema → Fecha/Hora). '
+                                'No siempre coincide con la de la compañía en Odoo, sobre todo si el equipo '
+                                'está en una sucursal con otro huso horario. Se usa para convertir las marcaciones '
+                                '(que el reloj reporta en su hora local) a UTC antes de guardarlas.')
 
     _sql_constraints = [
         ('serial_number_unique', 'unique(serial_number)',
          'Ya existe un dispositivo registrado con este número de serie.'),
     ]
 
+    @api.depends()
     def _compute_log_count(self):
         Log = self.env['zk.attendance.log']
         for device in self:
             device.log_count = Log.search_count([('device_id', '=', device.id)])
+
+    @api.depends()
+    def _compute_command_count(self):
+        Command = self.env['zk.device.command']
+        for device in self:
+            device.command_count = Command.search_count([
+                ('device_id', '=', device.id), ('state', '=', 'pending'),
+            ])
+
+    def action_view_commands(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Comandos de %s' % self.name,
+            'res_model': 'zk.device.command',
+            'view_mode': 'list,form',
+            'domain': [('device_id', '=', self.id)],
+            'context': {'default_device_id': self.id},
+        }
+
+    # ------------------------------------------------------------------
+    # Probar conexión
+    # ------------------------------------------------------------------
+    def action_test_connection(self):
+        """En SDK, se conecta ahora mismo al reloj (ping real). En ADMS,
+        Odoo NO puede iniciar la conexión hacia el reloj —el protocolo es
+        al revés, el reloj es quien llama a Odoo— así que en su lugar
+        evalúa qué tan reciente fue la última comunicación recibida."""
+        self.ensure_one()
+        if self.connection_mode == 'sdk':
+            return self._test_connection_sdk()
+        return self._test_connection_adms()
+
+    def _test_connection_sdk(self):
+        if not self.ip_address:
+            raise UserError(_('Indica la dirección IP del reloj para poder probar la conexión.'))
+
+        try:
+            from zk import ZK
+        except ImportError:
+            raise UserError(_(
+                "La librería 'pyzk' no está instalada en el servidor de Odoo.\n"
+                "Instálala ejecutando en la terminal del servidor:\n\n"
+                "    pip install pyzk"
+            ))
+
+        zk_instance = ZK(self.ip_address, port=self.port or 4370,
+                          timeout=self.sdk_timeout or 5, force_udp=False, ommit_ping=False)
+        conn = None
+        try:
+            conn = zk_instance.connect()
+            try:
+                firmware = conn.get_firmware_version()
+            except Exception:
+                firmware = _('no disponible')
+            try:
+                serial = conn.get_serialnumber()
+            except Exception:
+                serial = self.serial_number or _('no disponible')
+
+            self.write({'state': 'connected', 'last_communication': fields.Datetime.now()})
+            message = _(
+                'Se estableció conexión con %(ip)s:%(port)s\n\n'
+                'Firmware: %(firmware)s\n'
+                'Número de serie reportado: %(serial)s'
+            ) % {
+                'ip': self.ip_address,
+                'port': self.port or 4370,
+                'firmware': firmware,
+                'serial': serial,
+            }
+            return self._notify(message, title=_('Conexión Exitosa'), msg_type='success')
+        except Exception as exc:
+            self.write({'state': 'error'})
+            message = _(
+                'No se pudo conectar con %(ip)s:%(port)s\n\nDetalle: %(error)s'
+            ) % {'ip': self.ip_address, 'port': self.port or 4370, 'error': exc}
+            return self._notify(message, title=_('Error de Conexión'), msg_type='danger')
+        finally:
+            if conn:
+                try:
+                    conn.disconnect()
+                except Exception:
+                    pass
+
+    def _test_connection_adms(self):
+        if not self.last_communication:
+            message = _(
+                'Este dispositivo todavía no se ha comunicado con Odoo.\n\n'
+                'Revisa en el reloj: Comunicación → Cloud/ADMS → que la IP/puerto '
+                'apunten a este servidor, y que el número de serie coincida '
+                'exactamente con "%s".'
+            ) % (self.serial_number or _('(sin número de serie configurado)'))
+            return self._notify(message, title=_('Sin Comunicación'), msg_type='warning')
+
+        delta = fields.Datetime.now() - self.last_communication
+        minutes = delta.total_seconds() / 60
+
+        if minutes <= 5:
+            message = _(
+                'El dispositivo se comunicó con Odoo hace %.0f minuto(s).\n'
+                'La conexión ADMS está activa.'
+            ) % minutes
+            return self._notify(message, title=_('Dispositivo Activo'), msg_type='success')
+
+        if minutes <= 60:
+            message = _(
+                'El dispositivo no se ha comunicado en los últimos %.0f minutos.\n\n'
+                'Puede ser normal según el intervalo de sincronización configurado '
+                'en el reloj. Si esperabas datos más recientes, revisa su red.'
+            ) % minutes
+            return self._notify(message, title=_('Sin Actividad Reciente'), msg_type='warning')
+
+        hours = minutes / 60
+        message = _(
+            'El dispositivo no se ha comunicado en %.1f horas.\n\n'
+            'Recuerda: en modo ADMS, Odoo no puede llamar al reloj —solo puede '
+            'esperar a que el reloj llame—. Verifica que esté encendido, con red, '
+            'y con la configuración de servidor correcta en Comunicación → Cloud/ADMS.'
+        ) % hours
+        return self._notify(message, title=_('Sin Comunicación Reciente'), msg_type='danger')
+
+    def _queue_command(self, command_type, command_text):
+        self.ensure_one()
+        if self.connection_mode != 'adms':
+            raise UserError(_(
+                'La cola de comandos solo aplica al modo ADMS/Push: el reloj la '
+                'consulta cada vez que hace polling a /iclock/getrequest. '
+                'En modo SDK/pyzk, Odoo se conecta directamente y no necesita cola.'
+            ))
+        return self.env['zk.device.command'].create({
+            'device_id': self.id,
+            'command_type': command_type,
+            'command_text': command_text,
+        })
+
+    def action_queue_reboot(self):
+        self.ensure_one()
+        self._queue_command('reboot', 'REBOOT')
+        return self._notify(_(
+            'Reinicio encolado. Se ejecutará en la próxima vez que el reloj '
+            'consulte comandos pendientes (según su intervalo de Delay/TransInterval).'
+        ))
+
+    def action_queue_clear_log(self):
+        self.ensure_one()
+        self._queue_command('clear_log', 'CLEAR LOG')
+        return self._notify(_(
+            'Limpieza de registros encolada. ⚠️ Esto borra las marcaciones '
+            'almacenadas EN LA MEMORIA DEL RELOJ (no las ya recibidas en Odoo).'
+        ))
+
+    # ------------------------------------------------------------------
+    # Conversión de zona horaria
+    # ------------------------------------------------------------------
+    def _localize_naive_datetime(self, naive_dt):
+        """El reloj reporta la marcación en su hora LOCAL (naive, sin tz).
+        Odoo guarda todo en UTC. Esta función localiza ese datetime según
+        la zona horaria configurada en el dispositivo (o, si no está
+        definida, la de la compañía) y lo convierte a UTC naive, listo
+        para guardar en un campo Datetime de Odoo."""
+        self.ensure_one()
+        if not naive_dt:
+            return naive_dt
+        tz_name = self.tz or self.env.user.tz or 'UTC'
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        try:
+            localized = tz.localize(naive_dt, is_dst=None)
+        except pytz.exceptions.AmbiguousTimeError:
+            # Hora ambigua por cambio de horario (fall-back): asumimos DST activo
+            localized = tz.localize(naive_dt, is_dst=True)
+        except pytz.exceptions.NonExistentTimeError:
+            # Hora inexistente por cambio de horario (spring-forward): la desplazamos 1h
+            localized = tz.localize(naive_dt, is_dst=False)
+        return localized.astimezone(pytz.UTC).replace(tzinfo=None)
 
     def action_view_logs(self):
         self.ensure_one()
@@ -122,7 +315,9 @@ class ZkDevice(models.Model):
             created = 0
             for rec in records:
                 pin = str(rec.user_id)
-                punch_dt = fields.Datetime.to_string(rec.timestamp)
+                # rec.timestamp es un datetime naive con la hora LOCAL del reloj
+                # (igual que en el push ADMS): se convierte con el mismo método.
+                punch_dt = self._localize_naive_datetime(rec.timestamp)
                 exists = Log.search_count([
                     ('device_id', '=', self.id),
                     ('device_pin', '=', pin),
@@ -165,13 +360,19 @@ class ZkDevice(models.Model):
         return self._notify(_('Sincronización exitosa: %s marcaciones nuevas.') % created)
 
     def _notify(self, message, title=None, msg_type='success'):
+        """Abre el diálogo de feedback con diseño propio (insignia de color +
+        mensaje), en vez del toast genérico de Odoo (display_notification)."""
+        feedback = self.env['zk.device.feedback'].create({
+            'title': title or _('Caremax Attendance'),
+            'message': message,
+            'feedback_type': msg_type if msg_type in ('success', 'warning', 'danger', 'info') else 'info',
+            'device_id': self.id if self else False,
+        })
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': title or _('ZKTeco'),
-                'message': message,
-                'type': msg_type,
-                'sticky': False,
-            },
+            'type': 'ir.actions.act_window',
+            'res_model': 'zk.device.feedback',
+            'view_mode': 'form',
+            'res_id': feedback.id,
+            'target': 'new',
+            'name': title or _('Caremax Attendance'),
         }

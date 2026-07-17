@@ -1,0 +1,90 @@
+/* ------------------------------------------------------------------
+   Caremax Attendance — Diálogo de feedback (zk.device.feedback)
+   Insignia circular de color + tipografía jerárquica, en vez del
+   toast genérico de Odoo. Usa las variables de color de Odoo cuando
+   existen, con valores de respaldo por si el tema no las define.
+   ------------------------------------------------------------------ */
+
+.modal-content:has(.o_zk_feedback) {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.o_zk_feedback .modal-body,
+.o_zk_feedback.o_form_view {
+    padding: 0;
+}
+
+.o_zk_feedback_body {
+    padding: 40px 32px 28px 32px;
+    text-align: center;
+}
+
+.o_zk_feedback_badge {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    animation: o_zk_feedback_pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes o_zk_feedback_pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.o_zk_feedback_badge_success { background-color: #e3f6ec; color: #1c9a5b; }
+.o_zk_feedback_badge_warning { background-color: #fef2df; color: #c98a12; }
+.o_zk_feedback_badge_danger  { background-color: #fce9e9; color: #d9463c; }
+.o_zk_feedback_badge_info    { background-color: #e5eefc; color: #2f6fd1; }
+
+.o_zk_feedback_title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #1f2430;
+    margin: 0 0 10px 0;
+}
+
+.o_zk_feedback_title .o_field_widget,
+.o_zk_feedback_title span {
+    display: inline;
+}
+
+.o_zk_feedback_message {
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: #5b6270;
+    white-space: pre-wrap;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.o_zk_feedback_message .o_field_widget {
+    white-space: pre-wrap;
+}
+
+.o_zk_feedback_footer {
+    justify-content: center !important;
+    border-top: 1px solid #eef0f3;
+    padding: 16px 32px 20px 32px;
+}
+
+.o_zk_feedback_btn {
+    background-color: #2b2f38;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 28px;
+    font-weight: 500;
+    transition: background-color 0.15s ease;
+}
+
+.o_zk_feedback_btn:hover {
+    background-color: #40454f;
+    color: #ffffff;
+}

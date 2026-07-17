@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_zk_device_feedback_form" model="ir.ui.view">
+        <field name="name">zk.device.feedback.form</field>
+        <field name="model">zk.device.feedback</field>
+        <field name="arch" type="xml">
+            <form class="o_zk_feedback">
+                <div class="o_zk_feedback_body">
+                    <div class="o_zk_feedback_badge o_zk_feedback_badge_success"
+                         invisible="feedback_type != 'success'">
+                        <i class="fa fa-check"/>
+                    </div>
+                    <div class="o_zk_feedback_badge o_zk_feedback_badge_warning"
+                         invisible="feedback_type != 'warning'">
+                        <i class="fa fa-exclamation"/>
+                    </div>
+                    <div class="o_zk_feedback_badge o_zk_feedback_badge_danger"
+                         invisible="feedback_type != 'danger'">
+                        <i class="fa fa-times"/>
+                    </div>
+                    <div class="o_zk_feedback_badge o_zk_feedback_badge_info"
+                         invisible="feedback_type != 'info'">
+                        <i class="fa fa-info"/>
+                    </div>
+
+                    <h2 class="o_zk_feedback_title">
+                        <field name="title" readonly="1" nolabel="1"/>
+                    </h2>
+                    <div class="o_zk_feedback_message">
+                        <field name="message" readonly="1" nolabel="1"/>
+                    </div>
+                </div>
+                <footer class="o_zk_feedback_footer">
+                    <button string="Entendido" class="btn o_zk_feedback_btn" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
